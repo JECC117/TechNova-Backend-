@@ -1,0 +1,21 @@
+# Visual Studio / Entornos locales
+.vs/
+*.user
+*.suo
+*.dbmdl
+
+# Carpetas de compilación de .NET (C#)
+bin/
+obj/
+[Bb]in/
+[Oo]bj/
+
+# Archivos temporales, logs y cachés
+*.log
+*.cache
+*.tmp
+*.temp
+
+# Archivos de publicación
+*.Publish.xml
+*.pubxml
