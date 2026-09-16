@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
+using Microsoft.OpenApi.Models;
 using Scalar.AspNetCore;
 using System.Text;
 using System.Text.Json.Serialization;
@@ -43,6 +44,7 @@ services.AddControllers(options =>
 
 // 2. Configuración de Autenticación JWT Nativa
 var jwtSettings = configuration.GetSection("JwtSettings");
+var GeminiApi = configuration.GetSection("Gemini_API_Settings");
 var secretKey = jwtSettings["SecretKey"] ?? "TechNova_Super_Secure_Secret_Key_For_Jwt_Tokens_2026_Unisangil!";
 var key = Encoding.UTF8.GetBytes(secretKey);
 
@@ -72,22 +74,39 @@ services.AddOpenApi(options =>
 {
     options.AddDocumentTransformer((document, context, cancellationToken) =>
     {
-        document.Components ??= new OpenApiComponents();
-        document.Components.SecuritySchemes ??= new Dictionary<string, IOpenApiSecurityScheme>();
-
-        document.Components.SecuritySchemes["Bearer"] = new OpenApiSecurityScheme
+        // 1. Definir el esquema de seguridad Bearer JWT
+        var securityScheme = new OpenApiSecurityScheme
         {
+            Name = "Authorization",
+            Description = "Introduce tu token JWT aquí (ejemplo: Bearer eyJhbGci...).",
+            In = ParameterLocation.Header,
             Type = SecuritySchemeType.Http,
             Scheme = "bearer",
-            BearerFormat = "JWT",
-            Description = "Introduce tu token JWT aquí (sin la palabra Bearer)."
+            BearerFormat = "JWT"
         };
 
-        document.Security ??= [];
-        document.Security.Add(new OpenApiSecurityRequirement
+        // 2. Registrar el esquema en los componentes del documento
+        document.Components ??= new OpenApiComponents();
+        document.Components.SecuritySchemes.Add("Bearer", securityScheme);
+
+        // 3. Aplicar el requisito de seguridad globalmente a todos los endpoints
+        var securityRequirement = new OpenApiSecurityRequirement
         {
-            [new OpenApiSecuritySchemeReference("Bearer")] = []
-        });
+            {
+                new OpenApiSecurityScheme
+                {
+                    Reference = new OpenApiReference
+                    {
+                        Type = ReferenceType.SecurityScheme,
+                        Id = "Bearer"
+                    }
+                },
+                Array.Empty<string>()
+            }
+        };
+
+        document.SecurityRequirements ??= new List<OpenApiSecurityRequirement>();
+        document.SecurityRequirements.Add(securityRequirement);
 
         return Task.CompletedTask;
     });
@@ -127,12 +146,22 @@ services.AddScoped<IProductRepository, ProductRepository>();
 services.AddScoped<IAuthService, AuthService>();
 services.AddScoped<IRoleService, RoleService>();
 services.AddScoped<IProductService, ProductService>();
+services.AddScoped<IPDFService, PDFService>();
+services.AddScoped<IGeminiService, GeminiService>();
+services.AddScoped<IDocumentAnalysis, DocumentAnalysis>();
 
 // Filtros de Autorización
 services.AddScoped<ValidateTokenFilter>();
 services.AddScoped<AdminOnlyFilter>();
 services.AddScoped<GlobalExceptionFilter>();
 services.AddScoped<ValidationFilter>();
+
+// Servicios de exportacion de Http Request mediante HttpClient (Los servicios se registran igualmente)
+services.AddHttpClient<IGeminiService, GeminiService>(client => {
+
+    client.BaseAddress= new Uri("https://generativelanguage.googleapis.com/");
+    client.DefaultRequestHeaders.Add("x-goog-api-key", GeminiApi["GEMINI_API_KEY"]);
+});
 
 // 6. FluentValidation
 services.AddValidatorsFromAssemblies(AppDomain.CurrentDomain.GetAssemblies());
